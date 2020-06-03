@@ -1,20 +1,20 @@
 ﻿using CommonCachingDomain;
-using Microsoft.Extensions.Caching.Memory;
+using ConsoleAppCachingNetFramework;
 using System;
-using System.Threading;
+using System.Runtime.Caching;
 using System.Threading.Tasks;
 
-namespace ConsoleAppCoreCaching
+namespace ConsoleAppCachingNetFramework
 {
     public class SimpleCustomerMemoryCacheWithoutLocking : ICustomerService
     {
         private readonly ICustomerService _actualService;
-        private readonly IMemoryCache _memoryCache;
-        public SimpleCustomerMemoryCacheWithoutLocking(ICustomerService actualService, IMemoryCache memoryCache)
+        private readonly MemoryCache _memoryCache;
+        public SimpleCustomerMemoryCacheWithoutLocking(ICustomerService actualService)
         {
             if (actualService == null) { throw new ArgumentNullException(nameof(actualService)); }
             _actualService = actualService;
-            _memoryCache = memoryCache;
+            _memoryCache = MemoryCache.Default;
         }
         public string Name => nameof(SimpleCustomerMemoryCacheWithoutLocking);
         public int CreatedCount => _actualService.CreatedCount;
@@ -24,20 +24,13 @@ namespace ConsoleAppCoreCaching
 
         public async Task<Customer> GetOrAddCustomer(Guid customerId)
         {   
-            if (_memoryCache.TryGetValue(customerId, out var cacheEntry)) 
+            if (_memoryCache.TryGetValue(customerId.ToString(), out Customer cacheEntry)) 
             {
-                return cacheEntry as Customer;
-            }
-                          
+                return cacheEntry;
+            }                          
             var customer = await _actualService.GetOrAddCustomer(customerId);
-            if (_memoryCache.TryGetValue(customerId, out var secondAttempt))
-            {
-                Interlocked.Increment(ref _secondAttemptCounter);
-                return secondAttempt as Customer;
-            }
-            
-            _memoryCache.Set(customerId, customer);
-            return customer;            
+            var result = _memoryCache.TryAddValue(customerId.ToString(), customer, DateTimeOffset.UtcNow.AddSeconds(5));
+            return result;            
         }
     }
 }
